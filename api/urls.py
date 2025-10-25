@@ -11,7 +11,10 @@ from .views import (
 urlpatterns = [
     path('countries/refresh', refresh_countries_view, name='country-refresh'),
     path('countries', CountryListView.as_view(), name='country-list'),
-    path('countries/<str:name>', CountryDetailView.as_view(), name='country-detail'),
-    path('status', status_view, name='status'),
+    
+    # FIX: Place the specific 'image' path BEFORE the general '<str:name>' path
     path('countries/image', summary_image_view, name='country-summary-image'),
+    path('countries/<str:name>', CountryDetailView.as_view(), name='country-detail'),
+    
+    path('status', status_view, name='status'),
 ]

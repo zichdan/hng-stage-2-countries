@@ -19,7 +19,11 @@ class Country(models.Model):
         return self.name
 
 class CacheStatus(models.Model):
-    last_full_refresh_at = models.DateTimeField()
+    # Allow this field to be null before the first refresh has happened.
+    last_full_refresh_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"Last refreshed at {self.last_full_refresh_at}"
+        # Add a check for None to avoid errors
+        if self.last_full_refresh_at:
+            return f"Last refreshed at {self.last_full_refresh_at}"
+        return "Never refreshed"
