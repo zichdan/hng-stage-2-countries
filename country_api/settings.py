@@ -108,6 +108,10 @@ DATABASES = {
     )
 }
 
+# Add this block to specify the engine when using mysql-connector-python
+if DATABASES['default']['ENGINE'] == 'django.db.backends.mysql':
+    DATABASES['default']['ENGINE'] = 'mysql.connector.django'
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
