@@ -1,8 +1,18 @@
 # country_api/settings.py
+from pathlib import Path
+from datetime import timedelta
+from environs import Env
 import os
 import dj_database_url
-from pathlib import Path
 
+import sys
+import logging.config # For logging
+
+# Initialize Env for reading .env file
+env = Env()
+env.read_env() # Reads the .env file
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -10,12 +20,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-z)0a)#07x6c%=&i)(q_*+!u!sqnm(o9j#j!^)g+&6ed9k88^64'
+# Get SECRET_KEY from environment variable
+SECRET_KEY = env("SECRET_KEY", default='django-insecure-b*tuoe%^o+=^35$0fufrm=oamh^(o0tabn39(7ni12(i-oup+4') # Fallback for local, but ensure it's set in .env for production
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Get DEBUG from environment variable
+DEBUG = env.bool("DEBUG", default=True) # Default to True for local, set to False in .env for production
 
-ALLOWED_HOSTS = []
+
+# Site URL
+SITE_URL = env("SITE_URL", default="http://127.0.0.1:8000")
+
+DJANGO_SECRET_ADMIN_URL=env("DJANGO_SECRET_ADMIN_URL", default="admin/")
+
+# ALLOWED_HOSTS from environment variable, split by comma
+# For production, specify your Render URL and any other hostnames.
+# For local, '127.0.0.1' and 'localhost' are usually sufficient.
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost", "localhost:8000", "localhost:3001"])
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=['http://localhost:3000', 'http://localhost:8000'])
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+
 
 
 # Application definition
@@ -27,10 +55,20 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # ... other django apps
+    'rest_framework',
+    'drf_yasg',
+    'django_filters',
+    'api',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Whitenoise Middleware - serves static files in production.
+    # Should be placed right after the security middleware.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -59,14 +97,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'country_api.wsgi.application'
 
 
-# Database
+# DATABASE CONFIGURATION
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        # Use the DATABASE_URL from the environment, fall back to SQLite for local dev
+        default='sqlite:///' + os.path.join(BASE_DIR, 'db.sqlite3'),
+        conn_max_age=600
+    )
 }
 
 
@@ -89,6 +128,18 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
+
+
+
+
+# DRF CONFIGURATION
+REST_FRAMEWORK = {
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.OrderingFilter',
+    ]
+}
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -106,7 +157,76 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# ... at the bottom of the file, near STATIC_URL
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # Add this line
+
+
+# Make sure MEDIA settings are present for image generation
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+
+
+
+
+
+# LOGGING CONFIGURATION
+# This setup provides detailed logging to the console.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    # Formatters define the layout of your log messages
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} {message}',
+            'style': '{',
+        },
+    },
+    # Handlers determine what happens to the log messages (e.g., print to console, save to file)
+    'handlers': {
+        'console': {
+            'level': 'DEBUG', # Capture all levels of logs from DEBUG upwards
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple', # Use the 'simple' formatter for console output
+        },
+        # You could add a file handler here to log to a file
+        # 'file': {
+        #     'level': 'INFO',
+        #     'class': 'logging.FileHandler',
+        #     'filename': 'debug.log',
+        #     'formatter': 'verbose',
+        # },
+    },
+    # Loggers are the entry point to the logging system
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO', # Log Django's own messages at INFO level
+            'propagate': True,
+        },
+        'profile_api': { # A specific logger for our app
+            'handlers': ['console'],
+            'level': 'DEBUG', # Log our app's messages at DEBUG level
+            'propagate': False, # Don't pass these messages to the root logger
+        },
+    },
+}
+
+
+
+
+
+
+
