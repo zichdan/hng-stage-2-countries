@@ -1,6 +1,32 @@
-media/
-venv
-env
+# Python
+__pycache__/
+*.pyc
+
+# Django
+*.log
 db.sqlite3
-media
-__pycache__
+db.sqlite3-journal
+
+# Environment variables
+.env
+.env.*
+!/.env.example
+
+# Media files
+# Ignore all user-uploaded content, including our generated image.
+media/
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
