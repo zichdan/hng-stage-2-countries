@@ -109,15 +109,23 @@ async def _generate_summary_image():
         img = Image.new('RGB', (1000, 800), color='white')
         d = ImageDraw.Draw(img)
         
+# ==============================================================================
+# MODIFIED SECTION: Reliable Font Loading
+# ==============================================================================
         try:
-            # Try to load a nicer font, fall back to default if not found
-            font_path = "arial.ttf"
+            # Define the path to the font file included in our project.
+            # This is more reliable than depending on system-installed fonts.
+            font_path = os.path.join(settings.BASE_DIR, 'api', 'assets', 'Roboto-Regular.ttf')
             title_font = ImageFont.truetype(font_path, 36)
             header_font = ImageFont.truetype(font_path, 28)
             text_font = ImageFont.truetype(font_path, 22)
         except IOError:
-            logger.warning("Arial font not found. Falling back to default font.")
+            logger.warning(f"Font not found at {font_path}. Falling back to default font.")
             title_font = header_font = text_font = ImageFont.load_default()
+# ==============================================================================
+# END MODIFIED SECTION
+# ==============================================================================
+
 
         # Draw text content
         d.text((50, 40), "Country Data Summary", fill=(0,0,0), font=title_font)
