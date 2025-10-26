@@ -1,6 +1,5 @@
 # country_api/settings.py
 from pathlib import Path
-from datetime import timedelta
 from environs import Env
 import os
 import dj_database_url
@@ -56,10 +55,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # ... other django apps
+    # 3rd Party Apps
     'rest_framework',
     'drf_yasg',
     'django_filters',
+    # Local Apps
     'api',
 ]
 
@@ -100,6 +100,7 @@ WSGI_APPLICATION = 'country_api.wsgi.application'
 # DATABASE CONFIGURATION
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# (If you switch back to mysqlclient, your DATABASE_URL will be used automatically)
 DATABASES = {
     'default': dj_database_url.config(
         # Use the DATABASE_URL from the environment, fall back to SQLite for local dev
@@ -149,19 +150,16 @@ REST_FRAMEWORK = {
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'UTC' # Use UTC for consistency
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = True # This is crucial for timezone-aware datetimes
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
-
-# ... at the bottom of the file, near STATIC_URL
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # Add this line
 
@@ -169,6 +167,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # Add this line
 # Make sure MEDIA settings are present for image generation
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -201,7 +201,7 @@ LOGGING = {
     # Handlers determine what happens to the log messages (e.g., print to console, save to file)
     'handlers': {
         'console': {
-            'level': 'DEBUG', # Capture all levels of logs from DEBUG upwards
+            'level': 'DEBUG' if DEBUG else 'INFO', # More verbose in local dev
             'class': 'logging.StreamHandler',
             'formatter': 'simple', # Use the 'simple' formatter for console output
         },
@@ -220,7 +220,17 @@ LOGGING = {
             'level': 'INFO', # Log Django's own messages at INFO level
             'propagate': True,
         },
-        'profile_api': { # A specific logger for our app
+         'django.db.backends': { # Quieter database logs unless there's a problem
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'api': { # A specific logger for our app
+            'handlers': ['console'],
+            'level': 'DEBUG', # Log our app's messages at DEBUG level
+            'propagate': False, # Don't pass these messages to the root logger
+        },
+        'country_api': { # A specific logger for our app
             'handlers': ['console'],
             'level': 'DEBUG', # Log our app's messages at DEBUG level
             'propagate': False, # Don't pass these messages to the root logger
