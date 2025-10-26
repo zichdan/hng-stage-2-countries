@@ -1,16 +1,19 @@
 # api/services.py
-import requests
-import random
-import os
 import asyncio
 import httpx
+import logging
+import os
+import random
 from datetime import datetime
+from django.utils import timezone # Import Django's timezone utility
 from django.db import transaction
 from django.conf import settings
 from PIL import Image, ImageDraw, ImageFont
-from asgiref.sync import sync_to_async
 
 from .models import Country, CacheStatus
+
+# Get a logger instance specific to this app
+logger = logging.getLogger('api')
 
 COUNTRIES_API_URL = "https://restcountries.com/v2/all?fields=name,capital,region,population,flag,currencies"
 EXCHANGE_RATE_API_URL = "https://open.er-api.com/v6/latest/USD"
@@ -22,17 +25,23 @@ class ExternalServiceError(Exception):
         self.status_code = status_code
         super().__init__(f"Could not fetch data from {service_name}")
 
+
 # We keep the image generation synchronous as it's a CPU-bound task
 def _generate_summary_image():
     """Generates and saves the summary image."""
+    logger.debug("Starting summary image generation...")
+
     total_countries = Country.objects.count()
     top_5_gdp = Country.objects.order_by('-estimated_gdp').values('name', 'estimated_gdp')[:5]
-    cache_status, _ = CacheStatus.objects.get_or_create(pk=1, defaults={'last_full_refresh_at': datetime.now()})
-    
+
+    # Use Django's timezone.now() for a timezone-aware datetime
+    now_aware = timezone.now()
+    cache_status, _ = CacheStatus.objects.get_or_create(pk=1, defaults={'last_full_refresh_at': now_aware})
+
     # Create image
     img = Image.new('RGB', (800, 600), color = 'white')
     d = ImageDraw.Draw(img)
-    
+
     try:
         # Use a default font or specify a path to a .ttf file
         font = ImageFont.truetype("arial.ttf", 24)
@@ -45,7 +54,7 @@ def _generate_summary_image():
     d.text((50, 50), f"Country Data Summary", fill=(0,0,0), font=font)
     d.text((50, 100), f"Total Countries Cached: {total_countries}", fill=(0,0,0), font=small_font)
     d.text((50, 130), f"Last Refreshed: {cache_status.last_full_refresh_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", fill=(0,0,0), font=small_font)
-    
+
     d.text((50, 200), "Top 5 Countries by Estimated GDP:", fill=(0,0,0), font=font)
     y_pos = 250
     for i, country in enumerate(top_5_gdp):
@@ -57,9 +66,14 @@ def _generate_summary_image():
     # Save image
     os.makedirs(os.path.dirname(SUMMARY_IMAGE_PATH), exist_ok=True)
     img.save(SUMMARY_IMAGE_PATH)
+    logger.info(f"Summary image successfully generated and saved to {SUMMARY_IMAGE_PATH}")
+
+
+
 
 async def _fetch_api_data():
     """Asynchronously fetches data from both external APIs concurrently."""
+    logger.info("Starting concurrent fetch from external APIs...")
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             countries_task = client.get(COUNTRIES_API_URL)
@@ -70,34 +84,48 @@ async def _fetch_api_data():
             countries_response, rates_response = responses
 
             if isinstance(countries_response, Exception):
+                logger.error("Failed to fetch from RestCountries API.", exc_info=True)
                 raise ExternalServiceError("RestCountries API")
             countries_response.raise_for_status()
+            logger.debug(f"RestCountries API responded with status {countries_response.status_code}")
 
             if isinstance(rates_response, Exception):
+                logger.error("Failed to fetch from Open Exchange Rate API.", exc_info=True)
                 raise ExternalServiceError("Open Exchange Rate API")
             rates_response.raise_for_status()
-
+            logger.debug(f"Open Exchange Rate API responded with status {rates_response.status_code}")
+            
+            logger.info("Successfully fetched data from both APIs.")
             return countries_response.json(), rates_response.json().get('rates', {})
 
         except httpx.HTTPStatusError as e:
             service_name = "RestCountries API" if COUNTRIES_API_URL in str(e.request.url) else "Open Exchange Rate API"
+            logger.error(f"{service_name} returned non-2xx status: {e.response.status_code}")
             raise ExternalServiceError(service_name, e.response.status_code)
-        except httpx.RequestError:
+        except httpx.RequestError as e:
             # This catches timeouts and connection errors
+            logger.error(f"A network error occurred: {e}", exc_info=True)
             raise ExternalServiceError("One or more external APIs")
+        
+
+
+
+
 
 
 # This is the main function called by the view
 def refresh_country_data():
     """
     High-performance refresh function that uses asyncio for concurrent API calls
-    and bulk database operations for efficiency.
+    and bulk database operations for efficiency with detailed logging.
     """
     # Run the async part of our code
     countries_data, exchange_rates = asyncio.run(_fetch_api_data())
+    logger.info(f"Processing {len(countries_data)} countries and {len(exchange_rates)} exchange rates.")
     
     # Get all existing countries from DB at once to avoid multiple queries in the loop
     existing_countries = {c.name.lower(): c for c in Country.objects.all()}
+    logger.debug(f"Found {len(existing_countries)} existing countries in the database.")
     
     countries_to_create = []
     countries_to_update = []
@@ -145,11 +173,16 @@ def refresh_country_data():
                 )
             )
             
+    logger.info(f"Prepared {len(countries_to_create)} new countries for creation.")
+    logger.info(f"Prepared {len(countries_to_update)} existing countries for update.")
+    
     # Perform all database operations in a single atomic transaction
     with transaction.atomic():
+        logger.debug("Starting atomic database transaction...")
         # Create new countries in one query
         if countries_to_create:
             Country.objects.bulk_create(countries_to_create)
+            logger.info(f"Successfully bulk-created {len(created_objs)} countries.")
             
         # Update existing countries in one query
         if countries_to_update:
@@ -157,13 +190,21 @@ def refresh_country_data():
                 countries_to_update,
                 ['capital', 'region', 'population', 'currency_code', 'exchange_rate', 'estimated_gdp', 'flag_url']
             )
+            logger.info(f"Successfully bulk-updated {len(countries_to_update)} countries.")
+
+
         
         # Update the global refresh timestamp
-        CacheStatus.objects.update_or_create(pk=1, defaults={'last_full_refresh_at': datetime.now()})
+        now_aware = timezone.now()  # FIX: Use timezone.now() to get a timezone-aware datetime object
+        CacheStatus.objects.update_or_create(pk=1, defaults={'last_full_refresh_at': now_aware})
+        logger.info(f"Updated cache status with new refresh time: {now_aware}")
+        logger.debug("Committing database transaction.")
+
 
     # Generate the summary image after the transaction is complete
     # Use sync_to_async if you were in a fully async context, but here we can call it directly.
     _generate_summary_image()
+    logger.info("Country data refresh process completed successfully.")
     
     return {"status": "success", "countries_processed": len(countries_data)}
 
