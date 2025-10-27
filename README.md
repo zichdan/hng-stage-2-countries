@@ -1,16 +1,6 @@
 ---
 
-### **Instructions**
-
-1.  In your project's root directory (at the same level as `manage.py`), create or open the file named `README.md`.
-2.  **Copy the entire content from the box below** and paste it into the file.
-3.  **Important:** Replace the placeholder for the GitHub repository URL with your actual link.
-
----
-
-### (Copy the text below this line)
-
-# HNG Stage 2: Country Data API
+### HNG Stage 2: Country Data API
 
 This project is a robust, high-performance RESTful API built for the HNG Internship Stage 2 Backend Task. The service fetches country and currency exchange rate data from external APIs, processes and enriches this data, caches it in a persistent database, and provides a suite of endpoints for CRUD operations and data retrieval.
 
