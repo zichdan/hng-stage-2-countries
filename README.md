@@ -1,6 +1,6 @@
 ---
 
-### HNG Stage 2: Country Data API
+## HNG Stage 2: Country Data API
 
 This project is a robust, high-performance RESTful API built for the HNG Internship Stage 2 Backend Task. The service fetches country and currency exchange rate data from external APIs, processes and enriches this data, caches it in a persistent database, and provides a suite of endpoints for CRUD operations and data retrieval.
 
@@ -131,7 +131,7 @@ Follow these steps to run the project on your local machine.
 
 #### 2. Clone the Repository
 ```bash
-git clone [YOUR_GITHUB_REPOSITORY_URL]
+git clone https://github.com/zichdan/hng-stage-2-countries.git
 cd hng-stage-2-countries
 ```
 
