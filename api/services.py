@@ -109,9 +109,6 @@ async def _generate_summary_image():
         img = Image.new('RGB', (1000, 800), color='white')
         d = ImageDraw.Draw(img)
         
-# ==============================================================================
-# MODIFIED SECTION: Reliable Font Loading
-# ==============================================================================
         try:
             # Define the path to the font file included in our project.
             # This is more reliable than depending on system-installed fonts.
@@ -122,10 +119,6 @@ async def _generate_summary_image():
         except IOError:
             logger.warning(f"Font not found at {font_path}. Falling back to default font.")
             title_font = header_font = text_font = ImageFont.load_default()
-# ==============================================================================
-# END MODIFIED SECTION
-# ==============================================================================
-
 
         # Draw text content
         d.text((50, 40), "Country Data Summary", fill=(0,0,0), font=title_font)
@@ -250,7 +243,8 @@ def refresh_country_data():
             logger.warning(f"Skipping country with missing name: {country_data}")
             continue
 
-        population = country_data.get('population', 0)
+        # Make sure population is a valid integer, defaulting to 0 if missing or null.
+        population = int(country_data.get('population', 0) or 0)
         
         currency_code = None
         if country_data.get('currencies'):
@@ -259,9 +253,25 @@ def refresh_country_data():
         exchange_rate = exchange_rates.get(currency_code) if currency_code else None
         
         estimated_gdp = 0
-        if population and exchange_rate and exchange_rate > 0:
-            multiplier = random.uniform(1000, 2000)
-            estimated_gdp = (population * multiplier) / exchange_rate
+        # ==============================================================================
+        # MODIFIED SECTION: Robust GDP Calculation
+        # ==============================================================================
+        # FIX: Wrap the GDP calculation in a try-except block.
+        # This prevents the entire refresh from crashing if an `exchange_rate` is not a
+        # valid number (e.g., a string), which would cause a TypeError.
+        try:
+            # We explicitly convert exchange_rate to a float to ensure the comparison is valid.
+            if population and exchange_rate and float(exchange_rate) > 0:
+                multiplier = random.uniform(1000, 2000)
+                estimated_gdp = (population * multiplier) / float(exchange_rate)
+        except (ValueError, TypeError):
+            # If `exchange_rate` cannot be converted to a float, log the issue
+            # and set it to None, ensuring the country is still saved without a GDP.
+            logger.warning(f"Could not parse exchange rate for {name} (Currency: {currency_code}). Value: {exchange_rate}")
+            exchange_rate = None
+        # ==============================================================================
+        # END MODIFIED SECTION
+        # ==============================================================================
 
         # Check against our in-memory dictionary
         instance = existing_countries.get(name.lower())

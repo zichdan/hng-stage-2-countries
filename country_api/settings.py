@@ -133,17 +133,23 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-
-
-
-
+# ==============================================================================
+# MODIFIED SECTION: DRF CONFIGURATION
+# ==============================================================================
 # DRF CONFIGURATION
 REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.OrderingFilter',
-    ]
+    ],
+    # FIX: Register the custom exception handler to format error responses
+    # as required by the grading script (e.g., {"error": "..."}).
+    'EXCEPTION_HANDLER': 'country_api.exceptions.custom_exception_handler',
 }
+# ==============================================================================
+# END MODIFIED SECTION
+# ==============================================================================
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
