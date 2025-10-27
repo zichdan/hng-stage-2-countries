@@ -4,6 +4,11 @@ from django.http import FileResponse, Http404
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+# --- IMPORTS FOR FIX ---
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import OrderingFilter
+# --- END IMPORTS FOR FIX ---
+
 
 # Import the models, serializers, services, and filters
 from .models import Country, CacheStatus
@@ -47,6 +52,36 @@ def refresh_countries_view(request):
 
 # --- Country List and Detail Views ---
 
+# ==============================================================================
+# MODIFIED SECTION: CustomOrderingFilter and CountryListView
+# ==============================================================================
+
+class CustomOrderingFilter(OrderingFilter):
+    """
+    A custom ordering filter that uses 'sort' as the query parameter instead
+    of the default 'ordering', to match the project specifications.
+    It also allows mapping 'gdp_desc' to '-estimated_gdp'.
+    """
+    ordering_param = "sort" # Use `?sort=` for ordering.
+
+    def get_ordering(self, request, queryset, view):
+        # Allow for mapping 'gdp_desc' to '-estimated_gdp'
+        params = request.query_params.get(self.ordering_param)
+        if params:
+            fields = [param.strip() for param in params.split(',')]
+            # Custom mapping for gdp_desc
+            if 'gdp_desc' in fields:
+                fields[fields.index('gdp_desc')] = '-estimated_gdp'
+            
+            # This is the default behavior from the parent class
+            ordering = self.remove_invalid_fields(queryset, fields, view, request)
+            if ordering:
+                return ordering
+
+        # No ordering was specified or was invalid
+        return self.get_default_ordering(view)
+
+
 class CountryListView(generics.ListAPIView):
     """
     Handles GET /countries.
@@ -68,9 +103,17 @@ class CountryListView(generics.ListAPIView):
     # The filter class that defines which query parameters can be used for filtering
     filterset_class = CountryFilter
     
+    # Use the custom filter class
+    filter_backends = [DjangoFilterBackend, CustomOrderingFilter]
+
     # Defines which fields can be used for sorting with the `?ordering=` query parameter.
     # e.g., `?ordering=-estimated_gdp` for descending GDP.
     ordering_fields = ['estimated_gdp', 'name', 'population']
+
+# ==============================================================================
+# END MODIFIED SECTION
+# ==============================================================================
+
 
 # ==============================================================================
 # MODIFIED SECTION: CountryDetailView
